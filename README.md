@@ -1,60 +1,847 @@
-# template-for-proposals
+# Reducing super sets to complements.
 
-A repository template for ECMAScript proposals.
+**Champion(s)**: 
 
-## Before creating a proposal
+* TBD (To Be Determined)
 
-Please ensure the following:
-  1. You have read the [process document](https://tc39.github.io/process-document/)
-  1. You have reviewed the [existing proposals](https://github.com/tc39/proposals/)
-  1. You are aware that your proposal requires being a member of TC39, or locating a TC39 delegate to "champion" your proposal
+**Author(s)**: 
 
-## Create your proposal repo
+* @lillallol
 
-Follow these steps:
-  1.  Click the green ["use this template"](https://github.com/tc39/template-for-proposals/generate) button in the repo header. (Note: Do not fork this repo in GitHub's web interface, as that will later prevent transfer into the TC39 organization)
-  1.  Go to your repo settings “Options” page, under “GitHub Pages”, and set the source to the **main branch** under the root (and click Save, if it does not autosave this setting)
-      1. check "Enforce HTTPS"
-      1. On "Options", under "Features", Ensure "Issues" is checked, and disable "Wiki", and "Projects" (unless you intend to use Projects)
-      1. Under "Merge button", check "automatically delete head branches"
-<!--
-  1.  Avoid merge conflicts with build process output files by running:
-      ```sh
-      git config --local --add merge.output.driver true
-      git config --local --add merge.output.driver true
-      ```
-  1.  Add a post-rewrite git hook to auto-rebuild the output on every commit:
-      ```sh
-      cp hooks/post-rewrite .git/hooks/post-rewrite
-      chmod +x .git/hooks/post-rewrite
-      ```
--->
-  3.  ["How to write a good explainer"][explainer] explains how to make a good first impression.
+**Stage**: -1
 
-      > Each TC39 proposal should have a `README.md` file which explains the purpose
-      > of the proposal and its shape at a high level.
-      >
-      > ...
-      >
-      > The rest of this page can be used as a template ...
+## The gist
 
-      Your explainer can point readers to the `index.html` generated from `spec.emu`
-      via markdown like
+Statically typed super sets of Ecmascript are inferior to complements. The 
+ecosystem is dominated by super sets because it has never been presented
+equally and appropriately with a complement. Therefore, tc39 must pave the way
+for reducing super sets to complements, since that will benefit everyone. This is
+trivial to be done. Just add in the Ecmascript specification, that nothing more 
+than the following comments:
 
-      ```markdown
-      You can browse the [ecmarkup output](https://ACCOUNT.github.io/PROJECT/)
-      or browse the [source](https://github.com/ACCOUNT/PROJECT/blob/HEAD/spec.emu).
-      ```
+```js
+/**@type {import("./path/to/types/file").IMyType}*/
+//@ts-expect-error
+//@ts-nocheck
+```
 
-      where *ACCOUNT* and *PROJECT* are the first two path elements in your project's Github URL.
-      For example, for github.com/**tc39**/**template-for-proposals**, *ACCOUNT* is "tc39"
-      and *PROJECT* is "template-for-proposals".
+are to be used in `.js` files, by third party statically typed complements of
+EcmaScript. Let the rest of the type system be defined by third party type 
+checkers (defining a type system is out of scope for this proposal).
 
+## The intuition behind the proposal.
 
-## Maintain your proposal repo
+While trying to create documentation for the public API of my TypeScript 
+projects, I understood that this can be done without the need of documentation 
+generation libraries, by simply separating intend with implementation. That 
+separation lead naturally to the usage of TypeScript as a complement.
 
-  1. Make your changes to `spec.emu` (ecmarkup uses HTML syntax, but is not HTML, so I strongly suggest not naming it ".html")
-  1. Any commit that makes meaningful changes to the spec, should run `npm run build` and commit the resulting output.
-  1. Whenever you update `ecmarkup`, run `npm run build` and commit any changes that come from that dependency.
+### Separation of intent and implementation.
 
-  [explainer]: https://github.com/tc39/how-we-work/blob/HEAD/explainer.md
+Unfortunately the very design of TypeScript as a super set, promotes the mix of 
+intent with implementation, e.g.:
+
+* `./add.ts`
+
+    ```ts
+    const add = (a:number,b:number):number => a+b;
+    ```
+
+Separation of intent and implementation, e.g.:
+
+* `./publicApi.ts`
+
+    ```ts
+    export type IAdd = (a : number,b : number) => number;
+    ```
+* `./add.ts`
+
+    ```ts
+    import type {IAdd} from "./publicApi";
+
+    const add : IAdd = (a,b) => a+b;
+    ```
+
+is not enforced.
+
+#### Advantages.
+
+<details>
+<summary>expand/collapse</summary>
+
+<br>
+
+<details>
+<summary>Maintainable public API.</summary>
+
+Since the types are separated from their implementations, it makes sense to 
+gather all of the public API types in a single file. This makes it easy to 
+maintain the public API since it is not scattered in multiple files.
+</details>
+
+<details>
+<summary>Less need for <code>.d.ts</code> generators.</summary>
+
+The single file that contains the public API can in fact be a manually 
+created `index.d.ts` file, and hence reduce the need for `.d.ts` files 
+generation. The files that define the implementations of the public API will
+derive their corresponding types from `index.d.ts` so that they can conform to 
+it.
+</details>
+
+<details>
+<summary>Less need for documentation generations libraries.</summary>
+
+`index.d.ts` can act as documentation. The documentation section of the 
+`README.md` of a project can just link to `index.d.ts`. This makes documentation
+generation libraries for the most cases redundant.
+
+Here is an example:
+
+* `./index.d.ts`
+    ```ts
+    /**
+     * @description
+     * My super function.
+    */
+    export declare const add : (a : number,b : number) => number;
+    ```
+* `./privateApi.ts`
+    ```ts
+    import {add} from "index";
+
+    export type IAdd = typeof add;
+    ```
+* `./add.ts`
+    ```ts
+    import type {IAdd} from "./privateApi";
+
+    export const add : IAdd = (a,b) => a+b;
+    ```
+* `./index.ts`
+    ```ts
+    export {add} from "./add";
+    ```
+
+Notice that both the types and the JSDoc descriptions are contained in 
+`index.d.ts`, that means that imports from `index` show (or can be made to show) 
+both the type and the JSDoc description of `index.d.ts` in the IDE documentation
+popup window, when you hover over the imported variable.
+</details>
+
+<details>
+<summary>Flexibility on making the public API readable.</summary>
+
+You can put the most important types in the top of `index.d.ts`, and the least 
+important in the bottom. You can manually edit the format, define types and IDE
+collapsible regions for the sole purpose of improving public API readability for
+both the library maintainer but also the library consumer. Finally `index.d.ts` 
+opens in your IDE, with the font, syntax highlighting, theme and keyboard 
+shortcuts your are familiar with. It is not trivial to do these with 
+documentation generation libraries (e.g. typedoc).
+</details>
+
+<details>
+<summary>Reduced need to bundle declaration files.</summary>
+
+Many times, I find myself trying to bundle a library to an esm `index.js` file 
+with its associated `index.d.ts` file. From the previous points it can be seen 
+that there will be a reduced need for `.d.ts` bundlers. Just make sure that 
+`index.d.ts` is indeed acting like a public API, i.e. it does not depend on the
+private API and hence imports nothing from it.
+</details>
+
+<details>
+<summary>TypeScript reserves the least possible syntax from EcmaScript.
+</summary>
+
+You just need these two things:
+
+* type imports
+
+    ```ts
+    import type {IAdd} from "./index";
+    ```
+
+* type annotations for variable declarations
+
+    ```ts
+    export const add : IAdd = (a,b) => a+b;
+    ```
+
+Although this point might initially seem not that much of a big deal, it is 
+actually the gateway to the next section.
+</details>
+
+<details>
+<summary>Loose coupling of EcmaScript code with the type system.</summary>
+
+Not only the public API, but also the private API can be contained in a single 
+file, or at least a few files. This, combined with the fact of minimum syntax 
+reservation, makes the migration (automated or manual) from one type system to 
+another, easier.
+</details>
+
+<details>
+<summary>TypeScript maintainers have less work to do.</summary>
+
+A direct result of reserving the least possible syntax. They no longer need to
+enable mix of implementation and indent.
+
+</details>
+
+<details>
+<summary>The probability for TypeScript to have syntax collisions with 
+future EcmaScript syntax, gets minimized.</summary>
+
+A direct result of reserving the least possible syntax.
+
+</details>
+
+<details>
+<summary>Code that looks familiar to the EcmaScript developers.</summary>
+
+A direct result of reserving the least possible syntax.
+
+</details>
+
+<details>
+<summary>Formatters, syntax highlighters, etc, have a simpler job to do.
+</summary>
+
+A direct result of reserving the least possible syntax.
+
+</details>
+
+***
+
+</details>
+
+#### Addressing possible criticism.
+
+<details>
+<summary>expand/collapse</summary>
+
+<br>
+
+<details>
+<summary>Frequent context switching.</summary>
+
+More specifically, when you write the implementation of a type you will have to 
+frequently switch between the implementation file and the abstraction file, 
+because you want to see the type. This is not valid since the IDE will show you 
+the type of an implementation by hovering on its annotation. Also the IDE will
+highlight the parts of the implementation that do not conform to the type.
+
+</details>
+
+<details>
+<summary>You will not know where the types are.</summary>
+
+More specifically because the files for types can grow large, that will make it 
+hard to find the types. This is not valid since if you know where the 
+implementation of the type is, then you can use the go to type definition 
+feature of your IDE to find it.
+
+</details>
+
+<details> 
+<summary>This will lead to clutter of the common space.</summary>
+
+Multiple `.ts` files can be used to segregate the common space. Here is a 
+possible example:
+
+* `index.d.ts` is used to define the public API
+* `privateApi.ts` is used to define the private API
+* `types.ts` is used to define types shared in `privateApi.ts`
+* `trivialApi.ts` is used to define less complex types (e.g. `string[]`,`number`
+etc.)
+* `testApi.ts` is used to define types that are used only in test files
+* `typeFunctions.ts` is used to define type functions
+* `dicApi.ts` is used to define the types of the dependency graph of the DIC
+
+</details>
+
+<details>
+<summary>There will be no reduced need for bundling declaration files since 
+<code>index.d.ts</code> will depend on types from other files.</summary>
+
+If the public API depends on te private API, then reverse the dependency, and
+make the private API depend on the public API.
+
+</details>
+
+***
+
+</details>
+
+### Concluding to the complement method.
+
+If separation of intent and implementation, inevitably leads TypeScript, without 
+loss in static typing, to do the minimal possible syntax reservation from 
+EcmaScript, which is:
+
+* type imports:
+    
+    ```ts
+    import type {IAdd} from "index";
+    ```
+
+* type annotating a variable declaration
+    
+    ```ts
+    export const add : IAdd = (a,b) => a+b;
+    ```
+
+then why not use a comment syntax in EcmaScript that enables them both? For 
+example something that is already supported by:
+
+<details>
+<summary>TypeScript</summary>
+ 
+ ```js
+/**@type {import("./index").IAdd}*/
+export const add = (a,b) => a+b;
+```
+
+***
+
+</details>
+
+<details>
+<summary>Flow</summary>
+
+> Disclaimer: I do not know Flow
+
+```js
+/*:: import type {IAdd} from "index";*/
+export const add /*: IAdd*/ = (a,b) => a+b;
+```
+
+***
+
+</details>
+
+or a less verbose alternative:
+
+```js
+//:"./index".IAdd
+export const add = (a,b) => a+b;
+```
+
+#### Advantages
+
+<details>
+<summary>expand/collapse</summary>
+
+* no `.ts` to `.js` compilation needed
+* `.ts` files that contain implementations become redundant
+* no need for `tsc` to be a compiler
+* no need to wait the compiler
+* no need to worry whether the compiler will be fast as your project scales
+* no need to develop faster compilers
+* one less configuration for the build pipeline
+* no need to deal with the fragmented ecosystem of compiling `.ts` to `.js`
+* no need to depend on extra packages for your code to get executed
+* no need to learn new APIs
+* less configuration needed for `tsconfig.json`
+* less security issues due to depending on less code
+* one less source map
+* no need for TypeScript to have a source map generator
+* formatters have a simpler job to do
+* code can be pasted in the console and it will execute
+* no IoC (Inversion of Control), code executes as it has be written (at least 
+during the development stage)
+* syntax from TypeScript will never collide with EcmaScript syntax
+* easier adoption of TypeScript in projects that do no use it
+* easier adoption of TypeScript by beginners
+* the code gets even more familiar looking to the EcmaScript developer
+* adherence to KISS (Keep It Super Simple)
+* adherence to SRP (Single Responsibility Principle) (e.g. TypeScript is not 
+concerned with transpilation anymore)
+* it is type system agnostic
+* can be easily adopted by different static type checkers
+* standardization will have no effect on the runtime
+* standardization will create no need to change existing EcmaScript parsers
+* standardization will not collide with other tc39 proposals
+* standardization will be trivial
+* enforces separation of intent and implementation
+* enables simultaneous type checking source code with more than one type
+system
+
+***
+
+</details>
+
+#### Addressing possible criticism.
+
+<details>
+<summary>expand/collapse</summary>
+
+<br>
+
+<!-- #region There is loss in static typing since you will not be able to use type assertions. -->
+
+<details>
+<summary>There is loss in static typing since you will not be able to use type 
+assertions.</summary>
+
+Type assertions\[[link](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#type-assertions)\]
+are a bad practice since they override the type checker. It is true that the 
+override is safer than `//@ts-ignore`, but that does not change the fact that it
+is an override. This:
+
+```ts
+const myVariable = myValues as number;
+```
+
+can be replaced with this:
+
+```ts
+if (typeof myValue !== "number") throw Error();
+const myVariable = myValues;
+```
+
+leading to safer static type checking. It is the ability to use type assertions
+that leads to loss in static typing, not the inability to use them.
+</details>
+
+<!-- #endregion -->
+
+<!-- #region you will not be able to use as const -->
+
+<details>
+<summary>You will not be able to use const type assertions.</summary>
+
+Since TypeScript `5.0`, instead of using const type assertion you can do 
+something like:
+
+* `./privateApi`
+
+    ```ts
+    export type IAsConstArray = <const T extends readonly unknown[]>(array : T) => T;
+    ```
+
+* `index.js`
+
+    ```js
+    /**@type {import("./privateApi").IAsConstArray}*/
+    const asConstArray = (array) => array;
+    
+    const myData = asConstArray([1,2]);
+    ```
+
+</details>
+
+<!-- #endregion -->
+
+<!-- #region You will not be able to use type parameters. -->
+
+<details>
+<summary>You will not be able to use type parameters.</summary>
+
+Consider using a library that was written in TypeScript with the following 
+public API:
+
+* `./index.d.ts`:
+    
+    ```ts
+    /**
+     * @description 
+     *`DLL` stands for Double Linked List.
+    */
+    export declare function DLLFactory<T>() : IDLL<T>;
+    
+    type IDLLNode<T> = {
+        value    : T;
+        next     : IDLLNode<T> | null;
+        previous : IDLLNode<T> | null;
+    };
+    type IDLL<T> = {
+        tail   : IDLLNode<T> | null;
+        head   : IDLLNode<T> | null;
+        length : number;
+    };
+    ```
+
+Here is how to pass a type parameter to `DLLFactory` using the complement 
+method:
+
+* `./privateApi.ts`
+
+    ```ts
+    import {DLLFactory} from "./index";
+    
+    // works with typescript 4.7
+    export type IMyDllFactory = typeof DLLFactory<number>;
+    ```
+
+* `./myDLL.js`
+
+    ```js
+    import {DLLFactory} from "./index.js";
+    
+    /**
+     * @type {import("./privateApi").IMyDllFactory}
+     * Hover over `myDLLFactory` to see that the type parameter is `number`.
+     */
+    const myDLLFactory = DLLFactory;
+    ```
+
+Something that should be noted here, is that this is not possible with older 
+versions of TypeScript. Given that TypeScript is mostly used as a super set, it 
+makes sense for features that mainly benefit the complement method to not have 
+been requested, e.g. type parameters extraction\[[link](https://github.com/microsoft/TypeScript/issues/49112)\].
+So whenever we are faced in a situation that challenges the complement method,
+we should question whether this is an intrinsic inability of the complement 
+method or a matter of support from the type system.
+
+</details>
+
+<!-- #endregion -->
+
+<!-- #region You will not be able to use enum. -->
+
+<details>
+<summary>You will not be able to use <code>enum</code>.</summary>
+
+This is not an intrinsic inability of the complement method, since\[[link](https://www.typescriptlang.org/docs/handbook/enums.html)\]:
+    
+>Enums are one of the few features TypeScript has which is not a type-level
+>extension of EcmaScript.
+
+So it is both a matter of support from the type system but also EcmaScript.
+
+</details>
+
+<!-- #endregion -->
+
+<!-- #region It will produce unreadable and verbose code, that will reduce developer experience. -->
+
+<details>
+<summary>It will produce unreadable and verbose code, that will reduce developer
+experience.</summary>
+
+Objectively speaking, knowing the type of a concretion makes it easier to read
+the code. How can someone know the type of a concretions when writing code in 
+EcmaScript, i.e. the complement method? Hovering over any implementation, will 
+make the IDE to show its type. Do super sets need that help from the IDE? Yes 
+they do, because of type aliases.
+
+Given that help from the IDE, it becomes subjective which code base is more 
+readable. From my personal experience the more I get exposed to a certain 
+code style, the more readable I find it. So if you think that the complement 
+method is not readable, I suggest you, to ask yourself the same question after 
+some months you have been exposed to it. Eventually you will get used to it and 
+readability will not be an issue.
+
+Regarding verbosity, strictly speaking, a super set can always be made less
+verbose when compared to a complement, since a complement is forced to use
+the already existing comment syntax, while a super set reserves syntax outside 
+of existing comment syntax. However, from my experience with the complement and 
+super set methods of TypeScript, there is no practical impact in the developer 
+experience. In fact when comparing them, it is not actually clear which method 
+is less verbose, because in some cases, the complement method is less verbose
+while in other cases the super set method is less verbose.
+
+</details>
+
+<!-- #endregion -->
+
+<!-- #region Super sets are better because the community has chosen them -->
+
+<details>
+<summary>Super sets are better because the community has chosen them.</summary>
+
+This is a logical fallacy called argumentum ad populum\[[link](https://en.wikipedia.org/wiki/Argumentum_ad_populum)\].
+The fact, that something has be chosen by the majority, does not prove it is the
+best choice.
+
+If we want to know which method is preferred by the community, then we have to 
+ask people, that have tried both complement and super set methods, and have no 
+misconceptions about them. Any statistical inference based on something 
+different from that, is intrinsically biased.
+
+Lets look at the topic from a historical perspective:
+
+* 1999 JSDoc\[[link](https://en.wikipedia.org/wiki/JSDoc)\]
+* 2009 Closure Compiler\[[link](https://en.wikipedia.org/wiki/Google_Closure_Tools)\]
+* 2012 TypeScript\[[link](https://en.wikipedia.org/wiki/TypeScript#History)\]
+* 2014 Flow\[[link](https://github.com/facebook/flow/tree/49820636495b6e36752079117b9e7c34e5c4fc7b)\]
+* 2018 TypeScript supports `/**@type {import("./some/path").IMyType}*/`\[[link](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-9.html#import-types)\]
+* 2022 TypeScript supports `type IMyFn = typeof fn<IMyType>`\[[link](https://devblogs.microsoft.com/typescript/announcing-typescript-4-7/#instantiation-expressions)\]
+* 2022 TypeScript feature request for extracting type parameters\[[link](https://github.com/microsoft/TypeScript/issues/49112)\]
+* 2023 TypeScript supports `const` generics\[[link](https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/#const-type-parameters)\]
+
+> Why people use TypeScript instead of plain JSDoc?
+
+Regarding static typing, JSDoc syntax is verbose when compared to TypeScript. 
+This should not surprise us since JSDoc syntax was made to favor documentation, 
+while TypeScript syntax was made to favor static typing. Finally JSDoc lacks in 
+static typing support when compared to TypeScript.
+
+> Why people use TypeScript instead of Google's closure compiler?
+
+Same arguments that were used about JSDoc apply here as well.
+
+> Why people use TypeScript instead of Flow?
+
+Typescript "hit the market" first when compared to Flow.
+
+> Why people use TypeScript as a super set and not as a complement?
+
+That is because TypeScript as a complement has been possible only very recently.
+To add to that, statically typed complements have never been promoted.
+
+> Why the TypeScript creators decide to go for super set instead of complement?
+
+I do not know. The TypeScript creators have to answer that.
+
+</details>
+
+<!-- #endregion -->
+
+***
+
+</details>
+
+## Super set vs complement proposal.
+
+Here are the drawbacks of standardizing super sets into tc39:
+
+* There will be breaking changes to existing super sets.
+* There will be irreversible syntax reservation outside of native comments.
+* There might be collisions with existing tc39 proposals.
+* Every EcmaScript parser, will have to be updated, which means that:
+    * minifiers
+    * bundlers
+    * source maps
+    * browsers
+    
+  will also have to be updated.
+* It is highly likely that the updated EcmaScript parsers will be slower than 
+the older parsers.
+* They will take many years to be standardized because they reserve too 
+much syntax.
+* They might require an opt in like `"use types"`\[[link](https://github.com/tc39/notes/blob/main/meetings/2022-03/mar-31.md#types-as-comments-continuation)\], hence further fragmenting EcmaScript.
+
+Take into account that all these drawbacks apply, regardless of whether the 
+proposed super set will have types that have runtime semantics.
+
+These drawbacks do not exist with a proposal about complements.
+
+## Addressing possible proposal criticism.
+
+<!-- #region Nobody is going to adhere to the complement method. -->
+
+<details>
+<summary>Nobody is going to adhere to the complement method.</summary>
+
+People might claim that, regardless what tc39 manages to standardize regarding 
+static typing, nobody is going to adhere to it unless it is what the majority of
+the community has chosen, i.e. TypeScript. However:
+
+* It is TypeScript's design goal to\[[link](https://github.com/Microsoft/TypeScript/wiki/TypeScript-Design-Goals)\]:
+
+  > Align with current and future ECMAScript proposals.
+
+* This proposal proves that there is no need for future proposal creators to:
+
+  > steer away from syntax because typescript uses it\[[link](https://github.com/tc39/notes/blob/main/meetings/2022-03/mar-29.md#types-as-comments-for-stage-1)\].
+
+  Inevitably proposals that have nothing to do with static typing, but introduce
+  breaking changes to super sets, will be adopted. This will cause people to 
+  move to the complement method.
+
+* Acceptance of this proposal will popularize the complement method and expose 
+the drawbacks of super sets.
+
+* People can still use TypeScript with this proposal.
+
+* People that have created influential projects start to gradually conclude to 
+a looser form of the complement method\[[link](https://github.com/sveltejs/svelte/pull/8569)\].
+
+In the long run super sets will have no other choice than be reduced to 
+complements of EcmaScript.
+</details>
+
+<!-- #endregion -->
+
+<!-- #region I see defining a syntax for types without semantics to be actively harmful. -->
+
+<details>
+<summary>I see defining a syntax for types without semantics to be actively
+harmful.</summary>
+
+This statement is a direct quote from the tc39 meeting notes about the types as 
+comments proposal\[[link](https://github.com/tc39/notes/blob/main/meetings/2022-03/mar-29.md#types-as-comments-for-stage-1)\]. This argument applies to my proposal, so I 
+have to address it.
+
+Standardizing a semantically typed EcmaScript super set will be a very 
+controversial topic that will likely never reach adoption, and for the case it 
+does, it will be after many years (possibly decades). What are we going to do up 
+until then? Continue using non standard super sets despite all their drawbacks
+when compared to complements?
+
+Also it is highly likely that such a semantically typed EcmaScript super set
+will be slower than untyped EcmaScript. This means that even then, there will 
+still be people that use untyped EcmaScript.
+
+In addition, the only practical path for standardizing semantically typed 
+EcmaScript is to start with the standardization of the bare minimum, which is:
+
+* type annotations for variable declarations
+* type imports
+* type alias declarations
+
+Notice that:
+
+* syntax for generics functions
+* typing function parameters in concretion function
+* typing function return type in concretion function
+* typing classes via `implements`
+* syntax associated with types at runtime
+
+are not actually required.
+
+That bare minimum is actually enforcing separation of intend and implementation.
+This makes me understand that, an ecosystem that has embraced complements, i.e. 
+embraced separation of intend and implementation, will have a smooth transition 
+from complements to semantically typed EcmaScript.
+</details>
+
+<!-- #endregion -->
+
+<!-- #region The scope of tc39 does not include static typing. -->
+
+<details>
+<summary>The scope of tc39 does not include static typing.</summary>
+
+According to ecma-international the scope of tc39 is\[[link](https://www.ecma-international.org/technical-committees/tc39/)\]:
+
+>Scope:
+>
+>Standardization of the general purpose, cross platform, vendor-neutral 
+>programming language ECMAScript®. This includes the language syntax, semantics,
+>and libraries and complementary technologies that support the language.
+
+Static typing is a complementary technology that supports the EcmaScript 
+language. Hence the context proposal belongs to the scope of tc39.
+
+</details>
+
+<!-- #endregion -->
+
+<!-- #region Proposals at stage 1 are supposed to be about problem exploration, however this proposal has come up already with a solution. -->
+
+<details>
+<summary>So you've already decided what the solution should be.</summary>
+
+This statement is a direct quote from the tc39 meeting notes about the types as 
+comments proposal\[[link](https://github.com/tc39/notes/blob/main/meetings/2022-03/mar-29.md#types-as-comments-for-stage-1)\].
+It has to do with the fact that proposals at stage 1 are supposed to be about 
+problem exploration, and not about coming up already with a solution. This 
+argument applies to my proposal, so I have to address it.
+
+The problem statement is that super sets are a suboptimal solution to the 
+problem of adding static type checking in EcmaScript. How can someone prove that
+a solution to a problem is suboptimal? This is only done by showing that there 
+is a better solution.
+
+If there is a better solution than the one I have proposed then it should be 
+the proposed solution.
+
+</details>
+
+<!-- #endregion -->
+
+<!-- #endregion -->
+
+## A list of projects that implement the proposal.
+
+1. [es-test](https://github.com/lillallol/es-test) - testing library
+ 
+<details>
+<summary>Things to know before using TypeScript as a complement.</summary>
+
+* Make sure that you take a look at the list of the projects that already 
+implement the proposal.
+* Read and understand the context proposal.
+* Currently, TypeScript will not static type check `.js` files that have a 
+corresponding `.d.ts` file. However there are feature requests for that
+\[[link](https://github.com/microsoft/TypeScript/issues/48911#issuecomment-1115905062)\].
+* There is no `noExplicitAny` option in the `tsconfig.json`. Even if you 
+have `noImplicitAny` enabled, things like, `const myArray = []`,
+`const myMap = new Map()`, will be treated by TypeScript as being explicitly
+typed with `any`.
+* You will find that for some edge cases, functions are not properly typed. That
+is not the case for arrow functions. There is an issue open for that \[[link](https://github.com/microsoft/TypeScript/issues/49039)\].
+* There are some minor differences on how TypeScript applies static typing 
+to concretion in `.js` versus `.ts` \[[link](https://github.com/microsoft/TypeScript/issues/30009#issuecomment-469385244)\].
+* There is currently no support for extracting type parameters from generic
+functions. There is a feature request for that \[[link](https://github.com/microsoft/TypeScript/issues/49112)\].
+
+</details>
+
+## Defining the comment contract.
+
+This section is tentative.
+
+<details>
+<summary>A comment for type alias import, that will also type annotate.</summary>
+
+* statement:
+
+    ```js
+    //:"./path/to/file".exportedTypeName
+    export const add = (a,b) => a+b;
+    ```
+    
+* expression:
+
+    ```js
+    ( /*:"path/to/file".exportedTypeName*/ [
+        { a : 1 , b : "2" },
+        { a : 11, b : "22"}
+    ]).forEach(({a,b}) => {
+        // do some stuff
+    })
+    ```
+
+    There is a common misconception that there is an intrinsic need for an extra
+    pair of parenthesis\[[link](https://github.com/microsoft/TypeScript/issues/18212#issuecomment-328733868)\]. 
+</details>
+
+<details>
+<summary>A comment that will inform the type checker that a mistake is expected.
+</summary>
+
+* statement:
+
+    ```js
+    test(add.name,() => {
+        //:type-check-expect-error
+        expect(() => add("1",1)).toThrow();
+    })
+    ```
+
+* expression:
+
+    ```js
+    test(add.name,() => {
+        expect(() => {
+            add( /*:type-check-expect-error*/ "1" , 1 )
+        }).toThrow();
+    })
+    ```
+
+</details>
+
+<details>
+<summary>A comment at the top of a file that informs the static type checker to 
+ignore it.</summary>
+
+```js
+//:type-check-ignore-file
+```
+</details>
